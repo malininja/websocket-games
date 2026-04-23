@@ -7,16 +7,30 @@ use axum::{
     response::Response,
     routing::get,
 };
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 #[derive(Clone)]
 struct AppState {
-    tx: broadcast::Sender<String>,
+    tx: broadcast::Sender<ServerMsg>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ClientMsg {
+    Chat { text: String },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ServerMsg {
+    Chat { text: String },
+    System { text: String },
 }
 
 #[tokio::main]
 async fn main() {
-    let (tx, _) = broadcast::channel::<String>(100);
+    let (tx, _) = broadcast::channel::<ServerMsg>(100);
     let state = AppState { tx };
 
     let app = Router::new()
@@ -36,15 +50,27 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Resp
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     let mut rx = state.tx.subscribe();
 
+    let _ = state.tx.send(ServerMsg::System {
+        text: String::from("connect"),
+    });
+
     loop {
         tokio::select! {
             Some(Ok(Message::Text(text))) = socket.recv() => {
-                let _ = state.tx.send(text.to_string());
+                match serde_json::from_str::<ClientMsg>(&text) {
+                    Ok(ClientMsg::Chat { text }) => {
+                        let _ = state.tx.send(ServerMsg::Chat { text });
+                    }
+                    Err(e) => {
+                        eprintln!("Invalid message: {}", e);
+                    }
+                }
             }
             message = rx.recv() => {
                 match message {
                     Ok(m) => {
-                        if socket.send(Message::Text(m.into())).await.is_err() {
+                        let json = serde_json::to_string(&m).unwrap();
+                        if socket.send(Message::Text(json.into())).await.is_err() {
                             break;
                         }
                     }
@@ -55,4 +81,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             else => break,
         }
     }
+
+    let _ = state.tx.send(ServerMsg::System {
+        text: String::from("disconnect"),
+    });
 }
