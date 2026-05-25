@@ -1,0 +1,40 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-family: system-ui, sans-serif;
+  background: #16171d;
+  color: #f3f4f6;
+}
+
+#board {
+  display: grid;
+  grid-template-columns: repeat(3, 96px);
+  grid-template-rows: repeat(3, 96px);
+  gap: 6px;
+  background: #2e303a;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.cell {
+  font: 700 40px system-ui, sans-serif;
+  color: #f3f4f6;
+  background: #1f2028;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: grid;
+  place-items: center; /* centers X and O */
+  transition: background 0.15s;
+}
+
+.cell:hover {
+  background: #26283180;
+}
+
+.cell:focus-visible {
+  outline: 2px solid #c084fc;
+  outline-offset: 2px;
+}
