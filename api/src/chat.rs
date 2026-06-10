@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use axum::{
@@ -55,6 +56,11 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Resp
 }
 
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
+    let id = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+
     let room = match socket.recv().await {
         Some(Ok(Message::Text(t))) => match serde_json::from_str::<ClientMsg>(&t) {
             Ok(ClientMsg::Join { room }) => room,
@@ -93,14 +99,14 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             Some(Ok(Message::Text(text))) = socket.recv() => {
                 match serde_json::from_str::<ClientMsg>(&text) {
                     Ok(ClientMsg::Chat { text }) => {
-                        let _ = tx.send(ServerMsg::Chat { text });
+                        let output = format!("{} - {}", id, text);
+                        let _ = tx.send(ServerMsg::Chat { text: output });
                     }
                     Ok(ClientMsg::Join { .. }) => {
                         eprintln!("Can't join twice. Current room: {}", room);
                     }
                     Err(e) => {
                         eprintln!("Invalid message: {}", e);
-
                     }
                 }
             }

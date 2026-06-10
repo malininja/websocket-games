@@ -1,0 +1,1 @@
+/home/ninja/dev/tmp/websocket-games/api/src/tic_tac_toe/mod.rs:60 - why 'ws_handler' can have different parameters?  Previously it didn't had 'headers' and worked fine.
