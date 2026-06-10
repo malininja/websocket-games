@@ -1,3 +1,6 @@
+pub mod errors;
+pub mod game;
+
 use std::sync::{Arc, Mutex};
 
 use axum::{
@@ -14,10 +17,12 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
+use crate::tic_tac_toe::game::Game;
+
 #[derive(Clone)]
 struct AppState {
     tx: broadcast::Sender<ServerMessage>,
-    board: Arc<Mutex<Vec<Vec<Option<char>>>>>,
+    game: Arc<Mutex<Game>>,
     x_id: Arc<Mutex<Option<Uuid>>>,
     o_id: Arc<Mutex<Option<Uuid>>>,
 }
@@ -36,11 +41,7 @@ pub async fn main() {
     let (tx, _) = broadcast::channel::<ServerMessage>(100);
     let state = AppState {
         tx,
-        board: Arc::new(Mutex::new(vec![
-            vec![None, None, None],
-            vec![None, None, None],
-            vec![None, None, None],
-        ])),
+        game: Arc::new(Mutex::new(Game::new())),
         x_id: Arc::new(Mutex::new(None)),
         o_id: Arc::new(Mutex::new(None)),
     };
@@ -87,14 +88,17 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             match message {
                 Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(msg) => {
-                        let x_id = *state.x_id.lock().unwrap();
+                        // validate player
+                        // let x_id = *state.x_id.lock().unwrap();
+                        // let letter = if Some(id) == x_id { 'X' } else { 'O' };
 
-                        let letter = if Some(id) == x_id { 'X' } else { 'O' };
+                        let mut game = state.game.lock().unwrap();
+                        let winner = game.make_move(msg.position.0 as usize, msg.position.1 as usize);
+                        // handle winner result
+                        println!("winner: {:?}", winner);
 
-                        let mut board = state.board.lock().unwrap();
-                        board[msg.position.0 as usize][msg.position.1 as usize] = Some(letter);
                         let _ = state.tx.send(ServerMessage {
-                            board: board.to_vec(),
+                            board: game.board.to_vec() // board.to_vec(),
                         });
                     }
                     Err(e) => {
