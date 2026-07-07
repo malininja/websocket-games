@@ -15,16 +15,20 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use uuid::Uuid;
 
-use crate::tic_tac_toe::game::Game;
+use crate::{
+    WebsiteState,
+    auth::auth_service::validate_token,
+    tic_tac_toe::{errors::TicTacToeError, game::Game},
+};
 
 #[derive(Clone)]
 struct AppState {
+    website_state: WebsiteState,
     tx: broadcast::Sender<ServerMessage>,
     game: Arc<Mutex<Game>>,
-    x_id: Arc<Mutex<Option<Uuid>>>,
-    o_id: Arc<Mutex<Option<Uuid>>>,
+    x_id: Arc<Mutex<Option<String>>>,
+    o_id: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,26 +38,23 @@ struct ClientMessage {
 
 #[derive(Debug, Serialize, Clone)]
 struct ServerMessage {
-    board: Vec<Vec<Option<char>>>,
+    username: Option<String>,
+    board: Option<Vec<Vec<Option<char>>>>,
+    error: Option<TicTacToeError>,
+    winner: Option<String>,
 }
 
-pub async fn main() {
+pub fn router(website_state: WebsiteState) -> Router<WebsiteState> {
     let (tx, _) = broadcast::channel::<ServerMessage>(100);
     let state = AppState {
+        website_state,
         tx,
         game: Arc::new(Mutex::new(Game::new())),
         x_id: Arc::new(Mutex::new(None)),
         o_id: Arc::new(Mutex::new(None)),
     };
 
-    let app = Router::new()
-        .route("/tic-tac-toe", get(ws_handler))
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-
-    println!("listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    Router::new().route("/", get(ws_handler)).with_state(state)
 }
 
 async fn ws_handler(
@@ -61,22 +62,67 @@ async fn ws_handler(
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Response {
+    println!("jwt token: {}", state.website_state.jwt_secret);
     println!("headers: {:?}", headers);
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+
+    let mut token_option: Option<String> = None;
+
+    if let Some(cookie_header) = headers.get("cookie") {
+        match cookie_header.to_str() {
+            Ok(header_string) => {
+                if let Some(jwt_token) = header_string.split(";").find(|h| {
+                    h.trim()
+                        .starts_with(&format!("{}=", state.website_state.jwt_token_name))
+                }) {
+                    let parts: Vec<&str> = jwt_token.trim().split("=").collect();
+
+                    if parts.len() > 1 {
+                        token_option = Some(parts[1].to_string());
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading cookie header: {}", e);
+            }
+        }
+    }
+
+    if let Some(token) = token_option {
+        if let Some(claims) = validate_token(token, state.website_state.jwt_secret.clone()).await {
+            return ws.on_upgrade(|socket| handle_socket(socket, state, claims.sub));
+        }
+    }
+
+    eprintln!("Unauthorized");
+    ws.on_upgrade(async |mut socket| {
+        let message = ServerMessage {
+            username: None,
+            board: None,
+            error: Some(TicTacToeError::Unauthorized),
+            winner: None,
+        };
+
+        let json = serde_json::to_string(&message).unwrap();
+        let _ = socket.send(Message::Text(json.into())).await;
+        let _ = socket.send(Message::Close(None)).await;
+
+        while socket.recv().await.is_some() {}
+    })
 }
 
-async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    let id = Uuid::new_v4();
-    println!("conection opened: {}", id);
+async fn handle_socket(mut socket: WebSocket, state: AppState, username: String) {
+    println!("conection opened: {}", &username);
+
+    let mut player_letter: char = 'X';
 
     {
         let mut x_id = state.x_id.lock().unwrap();
         if x_id.is_none() {
-            *x_id = Some(id);
+            *x_id = Some(username.clone());
         } else {
             let mut o_id = state.o_id.lock().unwrap();
-            *o_id = Some(id);
-            std::mem::drop(o_id);
+            *o_id = Some(username.clone());
+            player_letter = 'O';
         }
     }
 
@@ -88,18 +134,49 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             match message {
                 Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(msg) => {
-                        // validate player
-                        // let x_id = *state.x_id.lock().unwrap();
-                        // let letter = if Some(id) == x_id { 'X' } else { 'O' };
-
                         let mut game = state.game.lock().unwrap();
-                        let winner = game.make_move(msg.position.0 as usize, msg.position.1 as usize);
-                        // handle winner result
-                        println!("winner: {:?}", winner);
 
-                        let _ = state.tx.send(ServerMessage {
-                            board: game.board.to_vec() // board.to_vec(),
-                        });
+                        if game.next_letter == player_letter {
+                            let winner_result = game.make_move(msg.position.0 as usize, msg.position.1 as usize);
+
+                            match winner_result {
+                                Ok(winner_option) => {
+                                    match winner_option {
+                                        Some(_) => {
+                                            let _ = state.tx.send(ServerMessage {
+                                                username: None,
+                                                board: Some(game.board.to_vec()),
+                                                error: None,
+                                                winner: Some(username.clone()),
+                                            });
+                                        },
+                                        None => {
+                                            let _ = state.tx.send(ServerMessage {
+                                                username: None,
+                                                board: Some(game.board.to_vec()),
+                                                error: None,
+                                                winner: None,
+                                            });
+                                        }
+                                    }
+                                },
+                                Err(error) => {
+                                    let _ = state.tx.send(ServerMessage {
+                                        username: None,
+                                        board: Some(game.board.to_vec()),
+                                        error: Some(error),
+                                        winner: None,
+                                    });
+                                }
+                            }
+                        } else {
+                            let _ = state.tx.send(ServerMessage {
+                                username: None,
+                                board: None,
+                                error: Some(TicTacToeError::InvalidMove),
+                                winner: None,
+                            });
+                        }
                     }
                     Err(e) => {
                         eprintln!("Invalid message: {}", e);
@@ -110,7 +187,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
           }
           message = rx.recv() => {
             match message {
-              Ok (m) => {
+              Ok (mut m) => {
+                m.username = Some(username.clone());
                 let json = serde_json::to_string(&m).unwrap();
                 if socket.send(Message::Text(json.into())).await.is_err() {
                   break;
@@ -124,5 +202,5 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         }
     }
 
-    eprintln!("conection closed: {}", id);
+    eprintln!("conection closed: {}", username);
 }

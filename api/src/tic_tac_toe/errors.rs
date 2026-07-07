@@ -1,6 +1,7 @@
+use serde::Serialize;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Serialize, Clone, Debug)]
 pub enum TicTacToeError {
     #[error("Game is finished")]
     GameFinished,
@@ -10,4 +11,10 @@ pub enum TicTacToeError {
 
     #[error("Field is out of bounds")]
     FieldOutOfBounds,
+
+    #[error("Unauthorized")]
+    Unauthorized,
+
+    #[error("Invalid move")]
+    InvalidMove,
 }

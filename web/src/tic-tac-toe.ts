@@ -8,6 +8,11 @@ type BoardData = [
   [TileData, TileData, TileData],
 ];
 
+enum TicTacToeError {
+  Unauthorized = "Unauthorized",
+  InvalidMove = "InvalidMove",
+}
+
 function renderBoard(boardData: BoardData) {
   for (const [i, row] of boardData.entries()) {
     for (const [j, tileData] of row.entries()) {
@@ -51,15 +56,47 @@ for (let i = 0; i < 3; i += 1) {
 
 type ClientMessage = { position: [number, number] };
 
-type ServerMessage = { board: BoardData };
+type ServerMessage = {
+  username?: string;
+  board?: BoardData;
+  winner?: string;
+  error?: string;
+};
 
 const ws = new WebSocket("ws://localhost:3000/tic-tac-toe");
 
 ws.addEventListener("open", () => console.log("Websocket opened!"));
-ws.addEventListener("close", () => console.log("Websocket closed!"));
+ws.addEventListener("close", (e) =>
+  console.log("Websocket closed!", e.code, e.wasClean),
+);
 ws.addEventListener("error", () => console.error("websocket error"));
 ws.addEventListener("message", (ev) => {
   console.log("websocket message", ev.data);
   const data = JSON.parse(ev.data) as ServerMessage;
-  renderBoard(data.board);
+
+  if (data.error) {
+    if (data.error === TicTacToeError.Unauthorized) {
+      console.error(`Unauthorized`);
+      window.location.href = "/login";
+      return;
+    }
+
+    if (data.error === TicTacToeError.InvalidMove) {
+      console.error("Not your turn!");
+      return;
+    }
+
+    console.error(`Invalid error status: ${data.error}`);
+    return;
+  }
+
+  renderBoard(data.board!);
+
+  if (data.winner) {
+    if (data.winner === data.username) {
+      return alert("pobjedio si!!!!");
+    }
+
+    return alert("izgubio si :(");
+  }
 });

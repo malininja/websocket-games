@@ -1,0 +1,25 @@
+body {
+  min-height: 100vh;
+  font-family: system-ui, sans-serif;
+  background: #16171d;
+  color: #f3f4f6;
+  place-items: center;
+  display: grid;
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  background: #2e303a;
+  gap: 1rem;
+  width: 300px;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.login-container-item {
+  padding: 1rem;
+  background: #1f2028;
+  color: #f3f4f6;
+  font-size: 1.5rem;
+}
