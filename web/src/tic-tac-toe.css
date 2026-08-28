@@ -19,7 +19,9 @@ body {
 }
 
 .cell {
-  font: 700 40px system-ui, sans-serif;
+  font:
+    700 40px system-ui,
+    sans-serif;
   color: #f3f4f6;
   background: #1f2028;
   border: none;

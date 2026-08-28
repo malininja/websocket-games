@@ -19,7 +19,7 @@ loginButton.addEventListener("click", async () => {
     });
 
     if (response.ok) {
-      window.location.href = "/tic-tac-toe";
+      window.location.href = "/lobby";
     } else {
       alert("Login error");
     }

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lobby</title>
+  </head>
+  <body>
+    <div class="lobby-container">
+      <h1 class="lobby-title">Lobby</h1>
+
+      <button type="button" id="create-game" class="create-btn">➕ Create New Game</button>
+
+      <section class="game-section">
+        <h2 class="section-title">Avaliable games</h2>
+        <div class="game-grid" id="available-games"></div>
+      </section>
+
+      <section class="game-section">
+        <h2 class="section-title">In Progress</h2>
+        <div class="game-grid" id="inprogress-games"></div>
+      </section>
+
+      <div class="lobby-empty" id="lobby-empty">No games yet - create one!</div>
+    </div>
+
+    <script type="module" src="/src/lobby.ts"></script>
+  </body>
+</html>

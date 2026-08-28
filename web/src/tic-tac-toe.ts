@@ -60,7 +60,7 @@ type ServerMessage = {
   username?: string;
   board?: BoardData;
   winner?: string;
-  error?: string;
+  error?: TicTacToeError;
 };
 
 const ws = new WebSocket("ws://localhost:3000/tic-tac-toe");

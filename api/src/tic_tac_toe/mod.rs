@@ -18,7 +18,7 @@ use tokio::sync::broadcast;
 
 use crate::{
     WebsiteState,
-    auth::auth_service::validate_token,
+    auth::auth_service::{get_cookie_jwt, validate_token},
     tic_tac_toe::{errors::TicTacToeError, game::Game},
 };
 
@@ -65,32 +65,13 @@ async fn ws_handler(
     println!("jwt token: {}", state.website_state.jwt_secret);
     println!("headers: {:?}", headers);
 
-    let mut token_option: Option<String> = None;
+    let jwt_option: Option<String> =
+        get_cookie_jwt(headers, state.website_state.jwt_token_name.clone());
 
-    if let Some(cookie_header) = headers.get("cookie") {
-        match cookie_header.to_str() {
-            Ok(header_string) => {
-                if let Some(jwt_token) = header_string.split(";").find(|h| {
-                    h.trim()
-                        .starts_with(&format!("{}=", state.website_state.jwt_token_name))
-                }) {
-                    let parts: Vec<&str> = jwt_token.trim().split("=").collect();
-
-                    if parts.len() > 1 {
-                        token_option = Some(parts[1].to_string());
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("Error reading cookie header: {}", e);
-            }
-        }
-    }
-
-    if let Some(token) = token_option {
-        if let Some(claims) = validate_token(token, state.website_state.jwt_secret.clone()).await {
-            return ws.on_upgrade(|socket| handle_socket(socket, state, claims.sub));
-        }
+    if let Some(token) = jwt_option
+        && let Some(claims) = validate_token(token, state.website_state.jwt_secret.clone()).await
+    {
+        return ws.on_upgrade(|socket| handle_socket(socket, state, claims.sub));
     }
 
     eprintln!("Unauthorized");
@@ -127,6 +108,14 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, username: String)
     }
 
     let mut rx = state.tx.subscribe();
+
+    // send current state to the player when they join
+    let _ = state.tx.send(ServerMessage {
+        username: None,
+        board: Some(state.game.lock().unwrap().board.to_vec()),
+        error: None,
+        winner: None,
+    });
 
     loop {
         tokio::select! {

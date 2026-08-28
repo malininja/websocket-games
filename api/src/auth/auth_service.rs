@@ -1,3 +1,4 @@
+use axum::http::HeaderMap;
 use chrono::Utc;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
 
@@ -28,4 +29,28 @@ pub async fn validate_token(token: String, secret: String) -> Option<Claims> {
         Ok(token) => Some(token.claims),
         Err(_) => None,
     }
+}
+
+pub fn get_cookie_jwt(headers: HeaderMap, jwt_name: String) -> Option<String> {
+    if let Some(cookie_header) = headers.get("cookie") {
+        match cookie_header.to_str() {
+            Ok(header_string) => {
+                if let Some(jwt_token) = header_string
+                    .split(";")
+                    .find(|h| h.trim().starts_with(&format!("{}=", jwt_name)))
+                {
+                    let parts: Vec<&str> = jwt_token.trim().split("=").collect();
+
+                    if parts.len() > 1 {
+                        return Some(parts[1].to_string());
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading cookie header: {}", e);
+            }
+        }
+    }
+
+    None
 }
