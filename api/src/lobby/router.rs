@@ -3,8 +3,9 @@ use serde::Serialize;
 use tokio::sync::broadcast;
 
 use crate::{
-    Game, WebsiteState,
+    WebsiteState,
     lobby::{errors::LobbyError, handler::lobby_ws_handler},
+    structs::GameDto,
 };
 
 #[derive(Clone)]
@@ -15,7 +16,7 @@ pub struct AppState {
 
 #[derive(Serialize, Clone)]
 pub struct ServerMessage {
-    pub games: Vec<Game>,
+    pub games: Vec<GameDto>,
     pub requested_by: String,
     pub username: Option<String>,
     pub error: Option<LobbyError>,

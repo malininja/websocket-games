@@ -1,0 +1,1 @@
+function navigate(address: string) {}

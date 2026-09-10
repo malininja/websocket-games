@@ -1,26 +1,15 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use axum::Router;
-use serde::Serialize;
-use uuid::Uuid;
+
+use crate::structs::WebsiteState;
 
 pub mod auth;
 pub mod chat;
 pub mod lobby;
+pub mod structs;
 pub mod tic_tac_toe;
-
-#[derive(Serialize, Clone)]
-pub struct Game {
-    pub id: Uuid,
-    pub players: (Option<String>, Option<String>),
-}
-
-#[derive(Clone)]
-pub struct WebsiteState {
-    pub jwt_secret: String,
-    pub jwt_token_name: String,
-    pub games: Arc<Mutex<Vec<Game>>>,
-}
 
 #[tokio::main]
 async fn main() {
@@ -34,7 +23,7 @@ async fn main() {
 
     let app = Router::new()
         .nest("/lobby", lobby::router::router(state.clone()))
-        .nest("/tic-tac-toe", tic_tac_toe::router(state.clone()))
+        .nest("/tic-tac-toe", tic_tac_toe::router::router(state.clone()))
         .nest("/login", auth::auth_router::router())
         .with_state(state);
 

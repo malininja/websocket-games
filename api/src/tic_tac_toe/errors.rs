@@ -17,4 +17,10 @@ pub enum TicTacToeError {
 
     #[error("Invalid move")]
     InvalidMove,
+
+    #[error("User not in game")]
+    UserNotInGame,
+
+    #[error("Game doesn't exist")]
+    GameDoesntExist,
 }

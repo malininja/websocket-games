@@ -13,6 +13,15 @@ enum TicTacToeError {
   InvalidMove = "InvalidMove",
 }
 
+let isNavigating = false;
+
+function navigate(url: string) {
+  if (!isNavigating) {
+    isNavigating = true;
+    window.location.href = url;
+  }
+}
+
 function renderBoard(boardData: BoardData) {
   for (const [i, row] of boardData.entries()) {
     for (const [j, tileData] of row.entries()) {
@@ -57,18 +66,24 @@ for (let i = 0; i < 3; i += 1) {
 type ClientMessage = { position: [number, number] };
 
 type ServerMessage = {
-  username?: string;
+  socket_username: string | null;
   board?: BoardData;
-  winner?: string;
-  error?: TicTacToeError;
+  winner: string | null;
+  error: TicTacToeError | null;
 };
 
 const ws = new WebSocket("ws://localhost:3000/tic-tac-toe");
 
 ws.addEventListener("open", () => console.log("Websocket opened!"));
-ws.addEventListener("close", (e) =>
-  console.log("Websocket closed!", e.code, e.wasClean),
-);
+ws.addEventListener("close", (e) => {
+  console.log("Websocket closed!", e.code, e.wasClean);
+
+  // lazy handle of the race condition on end of game socket removal on server
+  setTimeout(() => {
+    navigate("/lobby");
+  }, 500);
+});
+
 ws.addEventListener("error", () => console.error("websocket error"));
 ws.addEventListener("message", (ev) => {
   console.log("websocket message", ev.data);
@@ -77,7 +92,7 @@ ws.addEventListener("message", (ev) => {
   if (data.error) {
     if (data.error === TicTacToeError.Unauthorized) {
       console.error(`Unauthorized`);
-      window.location.href = "/login";
+      navigate("/login");
       return;
     }
 
@@ -92,11 +107,18 @@ ws.addEventListener("message", (ev) => {
 
   renderBoard(data.board!);
 
-  if (data.winner) {
-    if (data.winner === data.username) {
-      return alert("pobjedio si!!!!");
+  if (data.winner !== null) {
+    let msg = "izgubio si :(";
+
+    if (data.winner === "") {
+      msg = "nerješeno";
     }
 
-    return alert("izgubio si :(");
+    if (data.winner === data.socket_username) {
+      msg = "pobjedio si!!!!";
+    }
+
+    alert(msg);
+    navigate("/lobby");
   }
 });

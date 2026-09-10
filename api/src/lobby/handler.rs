@@ -11,12 +11,13 @@ use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::{
-    Game, WebsiteState,
+    WebsiteState,
     auth::auth_service::{get_cookie_jwt, validate_token},
     lobby::{
         errors::LobbyError,
         router::{AppState, ServerMessage},
     },
+    structs::Game,
 };
 
 #[derive(Deserialize)]
@@ -64,9 +65,9 @@ pub async fn lobby_ws_handler(
 async fn handle_socket(mut socket: WebSocket, state: AppState, username: String) {
     println!("connection opened");
 
-    let games = { state.website_state.games.lock().unwrap().to_vec() };
+    let games = { state.website_state.games.lock().await.to_vec() };
     let message = ServerMessage {
-        games: games.to_vec(),
+        games: games.iter().map(|g| g.to_dto()).collect(),
         requested_by: username.clone(),
         username: Some(username.clone()),
         error: None,
@@ -81,7 +82,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, username: String)
             message = socket.recv() => {
                 match message {
                     Some(Ok(Message::Text(text))) => {
-                        let message = handle_client_text_message(text, state.website_state.clone(), username.clone());
+                        let message = handle_client_text_message(text, state.website_state.clone(), username.clone()).await;
                         let _ = state.tx.send(message);
                     },
                     _ => break
@@ -108,12 +109,12 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, username: String)
     }
 }
 
-fn handle_client_text_message(
+async fn handle_client_text_message(
     text: Utf8Bytes,
     website_state: WebsiteState,
     username: String,
 ) -> ServerMessage {
-    let mut games = website_state.games.lock().unwrap();
+    let mut games = website_state.games.lock().await;
 
     let error: Option<LobbyError> = match serde_json::from_str::<ClientMessage>(&text) {
         Ok(message) => handle_message(message, &mut games, username.clone()),
@@ -124,7 +125,7 @@ fn handle_client_text_message(
     };
 
     ServerMessage {
-        games: games.to_vec(),
+        games: games.iter().map(|g| g.to_dto()).collect(),
         requested_by: username,
         username: None,
         error,
@@ -181,6 +182,8 @@ fn handle_create(games: &mut Vec<Game>, username: String) -> Option<LobbyError> 
     games.push(Game {
         id: Uuid::new_v4(),
         players: (Some(username), None),
+        board: None,
+        tx: None,
     });
 
     None
