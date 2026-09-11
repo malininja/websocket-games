@@ -1,4 +1,5 @@
 import "./tic-tac-toe.css";
+import config from "./config";
 
 type TileData = "X" | "O" | null;
 
@@ -72,7 +73,7 @@ type ServerMessage = {
   error: TicTacToeError | null;
 };
 
-const ws = new WebSocket("ws://localhost:3000/tic-tac-toe");
+const ws = new WebSocket(`ws://${config.apiUrl}/tic-tac-toe`);
 
 ws.addEventListener("open", () => console.log("Websocket opened!"));
 ws.addEventListener("close", (e) => {

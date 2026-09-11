@@ -1,4 +1,5 @@
 import "./lobby.css";
+import config from "./config";
 
 enum LobbyError {
   AlreadyStarted = "AlreadyStarted",
@@ -34,7 +35,7 @@ type ClientMessage = {
   action: GameAction;
 };
 
-const ws = new WebSocket("ws://localhost:3000/lobby");
+const ws = new WebSocket(`ws://${config.apiUrl}/lobby`);
 
 ws.addEventListener("open", () => {
   console.log("Websocket opened.");

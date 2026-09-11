@@ -1,4 +1,5 @@
 import "./login.css";
+import config from "./config";
 
 const usernameInput = document.querySelector("input")! as HTMLInputElement;
 const loginButton = document.querySelector("button")! as HTMLButtonElement;
@@ -11,7 +12,7 @@ loginButton.addEventListener("click", async () => {
   }
 
   try {
-    const response = await fetch("http://localhost:3000/login", {
+    const response = await fetch(`http://${config.apiUrl}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username }),
